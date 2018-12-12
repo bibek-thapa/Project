@@ -7,9 +7,9 @@ from pyspark import SQLContext
 def mapper(data):
 	date = data[15:23]
 	temp_air=int(data[87:92])
-	wind_speed = data[65:69]
+	wind_speed = int(data[65:69])
 
-	return (date[0:4],(temp_air));
+	return (date[0:4],temp_air,wind_speed);
 
 def mapper1(data):
 	date = data[15:23]
@@ -22,29 +22,32 @@ def mapper1(data):
 
 
 #initializing the context
-sc = SparkContext(appName="Weather")
+sc = SparkContext(appName="Climate Analysis")
 sc.setLogLevel("ERROR")
 #reading the whole directory
 start_time = time.time()
-#lines = sc.textFile("/home/DATA/NOAA_weather/{198[0-1]}/*.gz")
-lines = sc.textFile("./*.gz")
+lines = sc.textFile("/home/DATA/NOAA_weather/1980/*.gz")
+#lines = sc.textFile("./*.gz")
 
+lines1=lines.map(mapper)
 
 output1_name = "./output1/"
 output1_folder = Path(output1_name)
 if output1_folder.is_dir():
     shutil.rmtree(output1_name)
 
-min_temp = lines.map(mapper)\
+min_temp = lines1.map(lambda x:(x[0],x[1]))\
 			   .filter(lambda x : x[1]!=9999)\
 			   .reduceByKey(lambda x,y:min(x,y))
-max_temp = lines.map(mapper)\
+
+
+max_temp = lines1.map(lambda x:(x[0],x[1]))\
 			 .filter(lambda x : x[1]!=9999)\
 			 .reduceByKey(lambda x,y : max(x,y))
 
 
-max_windspeed=lines.map(mapper1)\
-			  .filter(lambda x : x[1]!=9999)\
+max_windspeed=lines1.map(lambda x:(x[0],x[2]))\
+			  .filter(lambda x : x[2]!=9999)\
 			  .reduceByKey(lambda x,y : max(x,y))
 
 
@@ -53,19 +56,17 @@ def toCSVLine(data):
 
 
 
-# min_tempo=min_temp.collect()
-# max_tempo= max_temp.collect()
-# max_windspeedo=max_windspeed.collect()
+
 output = sc.union([min_temp,max_temp,max_windspeed]).reduceByKey(lambda x,y :(x,y))
 
+
+
+output.collect()
 print("--- %s seconds ---" % (time.time() - start_time))
 lines = output.map(toCSVLine)
 lines.saveAsTextFile(path=output1_name)
 
 
-# for(word) in max_tempo,min_tempo,max_windspeedo:
-# 	print(word)
-sc.stop()
 
-#Now map reduce from the each of the files
+sc.stop()
 
